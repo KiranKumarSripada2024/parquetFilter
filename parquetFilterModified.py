@@ -15,7 +15,7 @@ config.read("config.properties")
 username = config.get("DEFAULT", "USERNAME")
 password = config.get("DEFAULT", "PASSWORD")
 
-date1 = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+date1 = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
 
 download_dir = "Zip_Download"
 json_directory = "Json_filtered"
@@ -113,7 +113,7 @@ def process_parquet_files(zip_path, json_dir, error_log_path):
 
     # Save JSON files per folder
     for folder, data in folder_data.items():
-        json_output_file = os.path.join(json_dir, f"{folder}.json")
+        json_output_file = os.path.join(json_dir, f"{folder}-{date1}.json")
         with open(json_output_file, "w") as f:
             json.dump(data, f, indent=4)
         print(f"Filtered data for '{folder}' saved in {json_output_file}")
