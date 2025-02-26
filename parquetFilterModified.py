@@ -15,7 +15,7 @@ config.read("config.properties")
 username = config.get("DEFAULT", "USERNAME")
 password = config.get("DEFAULT", "PASSWORD")
 
-date1 = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
+date1 = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 download_dir = "Zip_Download"
 json_directory = "Json_filtered"

@@ -56,90 +56,93 @@ def extract_parquet_from_zip(zip_path):
     return extracted_files
 
 
-# Function to filter rows where edited_date matches SYSDATE-1
-def filter_parquet_files_by_date(df, date_str):
+# Function to filter rows where edited_date or event_time matches SYSDATE-1
+def filter_parquet_files_by_date(df, date_str, folder_name):
     try:
-        if "edited_date" not in df.columns:
-            return pl.DataFrame(), "Missing 'edited_date' column"
+        column_name = "event_time" if folder_name == "view_events" else "edited_date"
 
+        if column_name not in df.columns:
+            if folder_name != "view_events":
+                return pl.DataFrame(), f"Missing '{column_name}' column"
+            else:
+                return pl.DataFrame(), None
+
+        # Check if the column is already datetime
+        if df[column_name].dtype != pl.Datetime:
+            df = df.with_columns(
+                pl.col(column_name)
+                .str.to_datetime(format="%Y-%m-%d %H:%M:%S%.f", strict=False)
+            )
+
+        # Convert datetime to string format YYYY-MM-DD
         df = df.with_columns(
-            pl.col("edited_date")
-            .cast(pl.Datetime("ms"))
+            pl.col(column_name)
             .dt.strftime("%Y-%m-%d")
-            .alias("edited_date_as_date")
+            .alias("filtered_date")
         )
 
-        df_filtered = df.filter(pl.col("edited_date_as_date") == date_str)
+        df_filtered = df.filter(pl.col("filtered_date") == date_str)
+
         return df_filtered, None
+
     except Exception as e:
-        return None, str(e)
+        return pl.DataFrame(), str(e)
 
 
 # Process ZIP file
 def process_parquet_files(zip_path, json_dir, error_log_path):
     files = extract_parquet_from_zip(zip_path)
-    errors = []
+    errors = {}
 
     for folder, file_list in files.items():
-        total_filtered_rows = 0
-        folder_results = []
+        folder_data = {"data": [], "controls": {"total_rows_count": 0}}
 
         for file_name, file_content in file_list:
             try:
                 df = pl.read_parquet(file_content)
-                df_filtered, error = filter_parquet_files_by_date(df, date1)
 
-                if error:
-                    errors.append({"file": file_name, "error": error})
+                df_filtered, error = filter_parquet_files_by_date(df, date1, folder)
+
+                if error and folder != "view_events":
+                    errors.setdefault(folder, []).append({"file": file_name, "error": error})
                     continue
 
                 row_count = df_filtered.height
-                total_filtered_rows += row_count
+                folder_data["controls"]["total_rows_count"] += row_count
 
                 if row_count > 0:
-                    folder_results.append({
+                    # Ensure "filtered_date" exists before dropping
+                    if "filtered_date" in df_filtered.columns:
+                        df_filtered = df_filtered.drop("filtered_date")
+
+                    entry = {
                         "file": file_name,
-                        "filtered_count": row_count,
-                        "filtered_rows": [
+                        "rows_count": row_count,
+                        "row_data": [
                             {k: (v.isoformat() if isinstance(v, (datetime, date)) else v) for k, v in row.items()}
                             for row in df_filtered.to_dicts()
                         ]
-                    })
+                    }
+                    folder_data["data"].append(entry)
+
             except Exception as e:
-                errors.append({"file": file_name, "error": str(e)})
+                errors.setdefault(folder, []).append({"file": file_name, "error": str(e)})
 
-        if folder_results:
-            json_output_file = os.path.join(json_dir, f"{folder}.json")
+        # Save JSON for the specific folder
+        if folder_data["data"]:
+            json_output_file = os.path.join(json_dir, f"{folder}-{date1}.json")
             with open(json_output_file, "w") as f:
-                json.dump({
-                    "control": [
-                        {
-                            "folder": folder,
-                            "total_filtered_rows": total_filtered_rows,
-                            "files": [
-                                {
-                                    "file": file_data["file"],
-                                    "data": [
-                                        {k: v.isoformat() if isinstance(v, (date, datetime)) else v for k, v in
-                                         row.items()}
-                                        for row in file_data["filtered_rows"]
-                                    ]
-                                }
-                                for file_data in folder_results
-                            ]
-                        }
-                    ]
-                }, f, indent=4)
+                json.dump(folder_data, f, indent=4)
+            print(f"Filtered data for '{folder}' saved in {json_output_file}")
 
-            print(f"Filtered data is saved in {json_output_file}")
-
+    # Save errors if any
     if errors:
         with open(error_log_path, "w") as f:
             json.dump({"errors": errors}, f, indent=4)
         print(f"Errors saved into {error_log_path}")
 
 
-# Process the ZIP file and store results
+# Call function
 process_parquet_files(zip_path, json_directory, error_log_path)
 
-print("Filtered edited_date data successfully saved in JSON.")
+print("Filtered edited_date and event_time data successfully saved in JSON.")
