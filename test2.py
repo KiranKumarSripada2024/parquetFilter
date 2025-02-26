@@ -117,7 +117,7 @@ def process_parquet_files(zip_path, json_dir, error_log_path):
                         df_filtered = df_filtered.drop("filtered_date")
                     file_details.append({
                         "file": file_name,
-                        "row_count": row_count
+                        "record_count": row_count
                     })
 
                     folder_filtered_data.extend([
