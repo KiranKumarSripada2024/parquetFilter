@@ -16,7 +16,7 @@ username = config.get("DEFAULT", "USERNAME")
 password = config.get("DEFAULT", "PASSWORD")
 
 # Setting date to SYSDATE-1
-date1 = (datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d")
+date1 = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 # Defining directory names
 download_dir = "zip_Download"
@@ -102,7 +102,7 @@ def process_parquet_files(zip_path, json_dir, error_log_path):
     folder_data = {}
     manifest_lines = []
 
-    manifest_path = os.path.join("manifest.txt")
+    manifest_path = os.path.join(json_dir,"manifest.txt")
 
     for folder, file_list in files.items():
         folder_filtered_data = []
@@ -139,14 +139,17 @@ def process_parquet_files(zip_path, json_dir, error_log_path):
                 errors.setdefault(folder, []).append({"file": file_name, "error": str(e)})
 
         # Store data for JSON output
-        folder_data[folder] = {
-            "data": folder_filtered_data,
-            "controls": {
-                "total_filtered_rows": total_filtered_rows,
-                "edited_date": date1,
-                "files": file_details
+        if total_filtered_rows>0:
+            folder_data[folder] = {
+                "data": folder_filtered_data,
+                "controls": {
+                    "total_filtered_rows": total_filtered_rows,
+                    "edited_date": date1,
+                    "files": file_details
+                }
             }
-        }
+        else:
+            folder_data[folder]={}
 
         # Add entry to manifest.txt
         manifest_lines.append(f"{folder}|{date1}|{total_filtered_rows}")
