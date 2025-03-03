@@ -187,7 +187,7 @@ def zip_json_directory(json_dir):
     print(f"Zipped '{json_dir}' into {zip_file_path}")
 
     # Remove the original directory
-    shutil.rmtree(json_dir)
+    #shutil.rmtree(json_dir)
 
 
 # Call the function after processing Parquet files
